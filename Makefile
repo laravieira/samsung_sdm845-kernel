@@ -764,6 +764,7 @@ endif
 
 # Tell gcc to never replace conditional load with a non-conditional one
 KBUILD_CFLAGS	+= $(call cc-option,--param=allow-store-data-races=0)
+KBUILD_CFLAGS	+= $(call cc-option,-fno-allow-store-data-races)
 
 ifdef CONFIG_RKP_CFP_JOPP
 CC		= $(CROSS_COMPILE)gcc
