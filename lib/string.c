@@ -249,6 +249,12 @@ EXPORT_SYMBOL(strscpy);
  * checking of the inputs. As such it's not recommended for usage. Instead,
  * its definition is provided in case the compiler lowers other libcalls to
  * stpcpy.
+ * stpcpy differs from strcpy in a key way: the return value is a pointer
+ * to the new %NUL-terminating character in @dest. (For strcpy, the return
+ * value is a pointer to the start of @dest). This interface is considered
+ * unsafe as it doesn't perform bounds checking of the inputs. As such it's
+ * not recommended for usage. Instead, its definition is provided in case
+ * the compiler lowers other libcalls to stpcpy.
  */
 char *stpcpy(char *__restrict__ dest, const char *__restrict__ src);
 char *stpcpy(char *__restrict__ dest, const char *__restrict__ src)
@@ -258,7 +264,6 @@ char *stpcpy(char *__restrict__ dest, const char *__restrict__ src)
 	return --dest;
 }
 EXPORT_SYMBOL(stpcpy);
-
 
 #ifndef __HAVE_ARCH_STRCAT
 /**
