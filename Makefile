@@ -400,7 +400,7 @@ KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -Wno-format-security \
 		   -std=gnu89
 
-KBUILD_CFLAGS += -Wno-error
+KBUILD_CFLAGS += -Wno-error -Wno-pointer-sign
 
 KBUILD_CPPFLAGS := -D__KERNEL__
 KBUILD_AFLAGS_KERNEL :=
