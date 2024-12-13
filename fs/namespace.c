@@ -1272,13 +1272,17 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void 
 		mnt->mnt.mnt_flags = MNT_INTERNAL;
 		root = mount_fs(type, flags, name, &mnt->mnt, data);
 #endif
-
+	}
 	if (IS_ERR(root)) {
 		mnt_free_id(mnt);
 		free_vfsmnt(mnt);
 		return ERR_CAST(root);
 	}
-}
+
+	if (root == NULL) {
+                return ERR_PTR(-EINVAL);
+        }
+
 #ifdef CONFIG_RKP_NS_PROT
 	rkp_set_mnt_root_sb(mnt->mnt,root,root->d_sb);
 	mnt->mnt_mountpoint = mnt->mnt->mnt_root;
