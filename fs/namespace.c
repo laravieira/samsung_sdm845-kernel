@@ -1279,10 +1279,6 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void 
 		return ERR_CAST(root);
 	}
 
-	if (root == NULL) {
-                return ERR_PTR(-EINVAL);
-        }
-
 #ifdef CONFIG_RKP_NS_PROT
 	rkp_set_mnt_root_sb(mnt->mnt,root,root->d_sb);
 	mnt->mnt_mountpoint = mnt->mnt->mnt_root;
