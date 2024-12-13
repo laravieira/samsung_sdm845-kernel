@@ -1266,7 +1266,7 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void 
 	}
 	if (flags & MS_KERNMOUNT)
 #ifdef CONFIG_RKP_NS_PROT
-		rkp_set_mnt_flags(mnt->mnt, MNT_INTERNAL);
+		rkp_set_mnt_flags(mnt->mnt,MNT_INTERNAL);
 		root = mount_fs(type, flags, name, mnt->mnt, data);
 #else
 		mnt->mnt.mnt_flags = MNT_INTERNAL;
@@ -1279,7 +1279,7 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void 
 		return ERR_CAST(root);
 	}
 #ifdef CONFIG_RKP_NS_PROT
-	rkp_set_mnt_root_sb(mnt->mnt, root, root->d_sb);
+	rkp_set_mnt_root_sb(mnt->mnt,root,root->d_sb);
 	mnt->mnt_mountpoint = mnt->mnt->mnt_root;
 #else
 	mnt->mnt.mnt_root = root;
