@@ -2643,13 +2643,14 @@ static int sm5720_fg_set_property(struct power_supply *psy,
 
             sm5720_set_full_chg_mq(fuelgauge, sm5720_meas_mq_dump(fuelgauge));
             fuelgauge->info.full_mq_dump = sm5720_meas_mq_dump(fuelgauge);
-
+#if defined(CONFIG_BATTERY_AGE_FORECAST)
         pr_info("%s: POWER_SUPPLY_PROP_CHARGE_FULL : q_max_now = 0x%x \n", __func__, fuelgauge->info.q_max_now);
-		if (fuelgauge->info.q_max_now !=
+	    if (fuelgauge->info.q_max_now !=
             fuelgauge->info.q_max_table[get_v_max_index_by_cycle(fuelgauge)]){
-            if (!sm5720_fg_reset(fuelgauge, false))
+            	if (!sm5720_fg_reset(fuelgauge, false))
                 return -EINVAL;
 	    }
+#endif
         }
 
         break;
