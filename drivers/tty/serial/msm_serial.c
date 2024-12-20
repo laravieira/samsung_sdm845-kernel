@@ -414,10 +414,8 @@ static inline void msm_wait_for_xmitr(struct uart_port *port)
 			printk_deferred("uart may lost data, resetting TX!\n");
 			break;
 		}
-=======
 		if (!timeout--)
 			break;
->>>>>>> 20258b3237ee (tty: serial: msm_serial: avoid system lockup condition)
 	}
 	msm_write(port, UART_CR_CMD_RESET_TX_READY, UART_CR);
 }
