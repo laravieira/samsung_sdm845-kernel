@@ -755,13 +755,13 @@ endif
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS   += -Os
 else
-KBUILD_CFLAGS   += -O2
+KBUILD_CFLAGS   += -pipe -O3
 endif
 
-# Tell compiler to tune the performance of the code for a specified
+# Specifies that the code should be optimized for the selected cores
 ifeq ($(cc-name),gcc)
-KBUILD_CFLAGS += -mcpu=cortex-a75.cortex-a55 -mtune=cortex-a75 -funswitch-loops -funroll-loops -fpeel-loops -fsplit-loops -Wno-error -Wa,-march=armv8-a+crypto
-KBUILD_AFLAGS += -mcpu=cortex-a75.cortex-a55 -mtune=cortex-a75 -funswitch-loops -funroll-loops -fpeel-loops -fsplit-loops -Wno-error -Wa,-march=armv8-a+crypto
+KBUILD_CFLAGS += -mcpu=cortex-a75.cortex-a55 -mtune=cortex-a55 -funroll-loops
+KBUILD_AFLAGS += -mcpu=cortex-a75.cortex-a55 -mtune=cortex-a55 -funroll-loops
 else ifeq ($(cc-name),clang)
 KBUILD_CFLAGS += -mcpu=cortex-a75+crypto -mtune=cortex-a55 -funroll-loops
 KBUILD_AFLAGS += -mcpu=cortex-a75+crypto -mtune=cortex-a55 -funroll-loops
