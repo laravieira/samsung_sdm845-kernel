@@ -12,7 +12,7 @@ jobs:
 
     steps:
     - name: Build Kernel
-      uses: laravieira/kernel_build_action@main
+      uses: Andrey0800770/kernel_build_action@main
       with:
           kernel-url: https://github.com/laravieira/samsung_sdm845-kernel
           kernel-dir: sdm845
