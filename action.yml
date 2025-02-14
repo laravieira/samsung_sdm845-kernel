@@ -1,0 +1,325 @@
+name: 'Android Kernel Build Action'
+description: "A action to built android kernel."
+
+branding:
+  icon: 'activity'
+  color: 'blue'
+
+inputs:
+  kernel-url:
+    description: 'Kernel Source Url'
+    required: false
+    default:
+  kernel-dir:
+    required: false
+    default: kernel
+  kernel-branch:
+    description: 'Branch name'
+    required: false
+    default: main
+  config:
+    description: 'configuration for building android kernel'
+    required: true
+    default: defconfig
+  arch:
+    description: 'device arch'
+    required: true
+    default: arm64
+  path:
+    description: 'Set environment PATH'
+    required: true
+    default: false
+  cflags:
+    description: 'Make Options'
+    required: true
+    default: false
+  extra-version:
+    description: 'Kernel Extra Version'
+    required: false
+    default:
+  python:
+    description: 'Set Python Version'
+    required: true
+    default: python3
+  gcc64-url:
+    description: 'GCC64 Repo'
+    required: false
+    default:
+  gcc64-tar:
+    description: 'GCC64 tar URL'
+    required: false
+    default:
+  clang-url:
+    description: 'Clang Repo'
+    required: false
+    default:
+  clang-tar:
+    description: 'Clang tar URL'
+    required: false
+    default:
+  ccache:
+    description: 'Enable Ccache for compiling kernel'
+    required: false
+    default: false
+  anykernel3:
+    description: 'Package kernel use anykernel3.'
+    required: false
+    default: false
+  anykernel3-url:
+    description: '3rdparty anykernrl3 url path'
+    required: false
+    default: ""
+  release:
+    description: "After the kernel compilation is completed, it will be automatically published to the releases page"
+    required: false
+    default: false
+  access-token:
+    description: 'PAT with repository scope (https://github.com/settings/tokens)'
+    required: false
+
+runs:
+  using: 'composite'
+  steps:
+
+    - name: Setup ccache
+      if: inputs.ccache == 'true'
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ${{ inputs.config }}-0cb68f9cbcbb3de9c966cf66ed51471fbe51419e
+        max-size: 4G
+
+    - name: Build Kernel
+      shell: bash
+      run: |
+         ########
+         if [[ ${GITHUB_ACTIONS} != "true" || ${OSTYPE} != "linux-gnu" || ! -f /bin/apt ]]; then
+             printf "This Action Is Intended For Debian-based Runner.\n"
+             exit 127
+         fi
+
+         if [ "$(id -u)" -eq 0 ]; then
+             export SU=
+         else
+             export SU=sudo
+         fi
+         if [ -f /usr/bin/docker ]; then
+             echo "::group:: Cleaning necessary disk space"
+             "$SU" docker image prune --all --force
+         fi
+         echo "::endgroup::"
+
+         echo "::group:: Installing Building Depend Packages"
+         "$SU" apt-get update
+         "$SU" apt-get install --no-install-recommends -y git-core gnupg flex bison build-essential zip curl zlib1g-dev libc6-dev-i386 libc6-dev x11proto-core-dev libx11-dev lib32z1-dev libgl1-mesa-dev libxml2-utils xsltproc unzip fontconfig
+         if [ "$(lsb_release -rs)" == "24.04" ]; then
+           "$SU" apt-get install --no-install-recommends -y libncurses6 libncurses-dev libncursesw6 libdebuginfod1
+         else
+           "$SU" apt-get install --no-install-recommends -y libncurses5 lib32ncurses5-dev python2
+         fi
+         aria2c -q https://raw.githubusercontent.com/Homebrew/install/master/uninstall.sh && NONINTERACTIVE=1 bash ./uninstall.sh -f -q
+         echo "::endgroup::"
+         export SWAP_FILE=$(swapon --show=NAME | tail -n 1)
+         if [ -f /bin/swapon ]; then
+             echo "::group:: Setting Up Swap"
+             "$SU" swapoff $SWAP_FILE
+             "$SU" rm $SWAP_FILE
+             "$SU" fallocate -l 16G $SWAP_FILE
+             "$SU" chmod 600 $SWAP_FILE
+             "$SU" mkswap $SWAP_FILE
+             "$SU" swapon $SWAP_FILE
+             echo "::endgroup::"
+         fi
+
+         echo "::endgroup::"
+
+         echo "::group:: Python VERSION"
+
+         if lsb_release -a 2>/dev/null | grep -q "Ubuntu 24.04"; then
+          echo "Installing Python 2.7 "
+          "$SU" echo "deb http://azure.archive.ubuntu.com/ubuntu/ jammy universe" | sudo tee -a /etc/apt/sources.list
+          "$SU" echo "deb http://azure.archive.ubuntu.com/ubuntu/ jammy-updates universe" | sudo tee -a /etc/apt/sources.list
+
+
+          "$SU" apt update
+          "$SU" apt-get install --no-install-recommends -y python2
+         fi
+
+         $SU update-alternatives --install /usr/bin/python python /usr/bin/${{ inputs.python }} 1
+         python --version
+         command -v python
+
+         echo "::endgroup::"
+
+         echo "::group:: Pulling Kernel Source"
+         if [ -n "${{ inputs.kernel-url }}" ]; then
+           git clone --recursive ${{ inputs.kernel-url }} -b "${{ inputs.kernel-branch }}" --depth=1 kernel/${{ inputs.kernel-dir }}
+           cd kernel/${{ inputs.kernel-dir }}
+         else
+           cd ${{ inputs.kernel-dir }}
+           git fetch
+           git checkout "${{ inputs.kernel-branch }}"
+           git pull
+         fi
+         echo "::endgroup::"
+
+         echo "::group:: Setting-up Toolchains"
+
+         if [ -n "${{ inputs.gcc64-url }}" ]; then
+             mkdir -p -v "$HOME/gcc64"
+             git clone ${{ inputs.gcc64-url }} $HOME/gcc64
+             GCC64="$HOME/gcc64/bin"
+             echo "$GCC64"
+             ls "$HOME/gcc64"
+         fi
+
+         if [ -n "${{ inputs.gcc64-tar }}" ]; then
+             mkdir -p -v "$HOME/gcc64"
+             wget -q -O gcc64.tar "${{ inputs.gcc64-tar }}"
+             case "$(file -b --mime-type gcc64.tar)" in
+                 application/x-gzip) tar -xzf gcc64.tar -C "$HOME/gcc64" ;;   # .tar.gz
+                 application/x-xz)   tar -xJf gcc64.tar -C "$HOME/gcc64" ;;   # .tar.xz
+                 application/zip)    unzip gcc64.tar -d "$HOME/gcc64" ;;       # .zip
+                 application/x-tar)  tar -xf gcc64.tar -C "$HOME/gcc64" ;;     # .tar
+                 *) echo "Tipo de arquivo não suportado: $(file -b --mime-type gcc64.tar)"; exit 1 ;;
+             esac
+             GCC64="$HOME/gcc64/bin"
+             echo "$GCC64"
+             ls "$HOME/gcc64"
+         fi
+
+         if [ -n "${{ inputs.clang-url }}" ]; then
+             mkdir -p -v "$HOME/clang"
+             git clone ${{ inputs.clang-url }} $HOME/clang
+             CLANG="$HOME/clang/bin"
+             echo "$CLANG"
+             ls "$HOME/clang"
+         fi
+
+         if [ -n "${{ inputs.clang-tar }}" ]; then
+             mkdir -p -v "$HOME/clang"
+             wget -q -O clang.tar ${{ inputs.clang-tar }}
+             case "$(file -b --mime-type clang.tar)" in
+                 application/x-gzip | application/gzip) tar -xzf clang.tar -C "$HOME/clang" ;;   # .tar.gz
+                 application/x-xz)   tar -xJf clang.tar -C "$HOME/clang" ;;   # .tar.xz
+                 application/zip)    unzip clang.tar -d "$HOME/clang" ;;       # .zip
+                 application/x-tar)  tar -xf clang.tar -C "$HOME/clang" ;;     # .tar
+                 *) echo "Tipo de arquivo não suportado: $(file -b --mime-type clang.tar)"; exit 1 ;;
+             esac
+             CLANG="$HOME/clang/bin"
+             echo "$CLANG"
+             ls "$HOME/clang"
+         fi
+         ls "$HOME/clang"
+         ls "$HOME/clang/bin"
+         export PATH="${{ inputs.path }}"
+         ${{ inputs.cflags }}
+         ${CROSS_COMPILE}gcc --version || true
+         clang --version || true
+         echo "::endgroup::"
+
+         echo "::group:: Compiling Linux Kernel "
+
+         mkdir out -p -v
+
+         export PLATFORM_VERSION=10.0
+         sed -i 's/^EXTRAVERSION =$/EXTRAVERSION = '"${{ inputs.extra-version }}"'/' Makefile
+
+         make O=out ARCH=arm64 ${{ inputs.config }}
+         echo "Starting compilaton"
+         make -j$(nproc --all) ${{ inputs.cflags }} O=out ARCH=arm64
+         echo "::endgroup::"
+
+         unset USE_CCACHE CLANG_TRIPLE CROSS_COMPILE_ARM32 CROSS_COMPILE CLANG_PATH HOMES SUBLEVEL KVER COMMAND SWAP_FILE SUBLEVEL PATCHLEVEL VERSION
+
+         if [ ${{ inputs.anykernel3 }} = false ]; then
+            echo "::group:: Preparing to Upload boot.img"
+            mkdir split
+            cd split
+            export HOST_ARCH=$(dpkg --print-architecture)
+            case ${HOST_ARCH} in
+                armv7* | armv8l | arm64 | armhf | arm) aria2c https://github.com/Shubhamvis98/AIK/raw/4ac321dfd48e16344e6146c505708aa720ff0bb3/bin/magiskboot_arm -o magiskboot && chmod 755 magiskboot ;;
+                i*86 | x86 | amd64 | x86_64) aria2c https://github.com/Shubhamvis98/AIK/raw/4ac321dfd48e16344e6146c505708aa720ff0bb3/bin/magiskboot_x86 -o magiskboot && chmod 755 magiskboot  ;;
+                *) echo "Unknow cpu architecture for this device !" && exit 1 ;;
+            esac
+            aria2c ${{ inputs.bootimg-url }} -o boot.img
+            nohup ./magiskboot unpack boot.img
+            export FMT=$(cat nohup.out | grep "KERNEL_FMT" | awk '{gsub("\\[", "", $2); gsub("\\]", "", $2); print $2}')
+            if [ "$FMT" = "raw" ] ; then
+                cp -v ../out/arch/${{ inputs.arch }}/boot/Image kernel
+            else
+                if ls dtb >/dev/null ; then
+                    cp -v ../out/arch/${{ inputs.arch }}/boot/Image.*-dtb kernel
+                else
+                    cp -v ../out/arch/${{ inputs.arch }}/boot/Image.* kernel
+                fi
+            fi
+            ./magiskboot repack boot.img
+            rm -rf boot.img
+            mkdir -p -v ../../../build
+            mv *.img ../../../build/boot.img -v
+            cd ..
+            echo "::endgroup::"
+         else
+            echo "::group:: Packaging Anykernel3 flasher"
+            if [ ! -z ${{ inputs.anykernel3-url }} ]; then
+                git clone ${{ inputs.anykernel3-url }} AnyKernel3
+            else
+                git clone https://github.com/osm0sis/AnyKernel3
+                sed -i 's!BLOCK=/dev/block/platform/omap/omap_hsmmc.0/by-name/boot;!BLOCK=auto;!g' AnyKernel3/anykernel.sh
+                sed -i 's/do.devicecheck=1/do.devicecheck=0/g' AnyKernel3/anykernel.sh
+                sed -i 's/is_slot_device=0;/IS_SLOT_DEVICE=auto;/g' AnyKernel3/anykernel.sh
+            fi
+
+            if [ -f out/arch/${{ inputs.arch }}/boot/Image.*-dtb ]; then
+                cp out/arch/${{ inputs.arch }}/boot/Image.*-dtb AnyKernel3/ -rv
+            elif [ -f out/arch/${{ inputs.arch }}/boot/Image.* ]; then
+                cp out/arch/${{ inputs.arch }}/boot/Image.* AnyKernel3/ -rv
+            else
+                cp out/arch/${{ inputs.arch }}/boot/Image AnyKernel3/ -rv
+            fi
+
+            test -f out/arch/${{ inputs.arch }}/boot/dtbo.img && cp -v out/arch/${{ inputs.arch }}/boot/dtbo.img AnyKernel3/
+
+            rm -rf -v AnyKernel3/.git* AnyKernel3/README.md
+            if [ ${{ inputs.release }} = false ]; then
+                cp AnyKernel3 ../../build -r -v
+            else
+                zip ${{ inputs.config }}.zip AnyKernel3/*
+                mv ${{ inputs.config }}.zip ../../build -v
+            fi
+            echo "::endgroup::"
+         fi
+
+    - id: uploadi
+      if: ${{ inputs.release == 'false' && inputs.anykernel3 == 'false' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: kernel-built-bootimg
+        path: build/*
+        if-no-files-found: error
+        overwrite: true
+
+    - id: uploada
+      if: ${{ inputs.release == 'false' && inputs.anykernel3 == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.config }}
+        path: build/*
+        if-no-files-found: error
+        overwrite: true
+
+    - id: release
+      if: inputs.release == 'true'
+      uses: softprops/action-gh-release@v2
+      env:
+        GITHUB_TOKEN: ${{ inputs.access-token }}
+      with:
+        name: Last CI build kernel
+        tag_name: last-ci
+        files: build/*
+        make_latest: true
+        body: |
+            config: ${{ inputs.config }}
+            branch: ${{ inputs.kernel-branch }}
+            source: ${{ inputs.kernel-url }}
+ 
